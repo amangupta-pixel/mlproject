@@ -1,14 +1,14 @@
 import sys
-from dataclasses import dataclass
+import os
 import numpy as np
 import pandas as pd
+from dataclasses import dataclass
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from src.exception import CustomException
 from src.logger import logging
-import os
 from src.utils import save_object
 
 @dataclass
@@ -31,7 +31,7 @@ class DataTransformation:
                 "test_preparation_course",
             ]
 
-            # Pipeline for numerical features (imputation + scaling)
+            # Pipeline for numerical features
             num_pipeline = Pipeline(
                 steps=[
                     ("imputer", SimpleImputer(strategy="median")),
@@ -39,19 +39,18 @@ class DataTransformation:
                 ]
             )
 
-            # Pipeline for categorical features (imputation + one-hot encoding + scaling)
+            # Pipeline for categorical features
             cat_pipeline = Pipeline(
                 steps=[
                     ("imputer", SimpleImputer(strategy="most_frequent")),
-                    ("one_hot_encoder", OneHotEncoder()),
-                    ("scaler", StandardScaler())
+                    ("one_hot_encoder", OneHotEncoder())
                 ]
             )
 
-            # Log categorical columns
+            # Logging categorical columns
             logging.info(f"Categorical columns: {categorical_columns}")
 
-            # Combining the numerical and categorical pipelines
+            # Combining pipelines
             preprocessor = ColumnTransformer(
                 transformers=[
                     ("num_pipeline", num_pipeline, numerical_columns),
@@ -60,12 +59,16 @@ class DataTransformation:
             )
 
             return preprocessor
-        
+
         except Exception as e:
             raise CustomException(e, sys)
 
     def initiate_data_transformation(self, train_path, test_path):
         try:
+            # Debug: Check paths
+            logging.info(f"Reading training data from: {train_path}")
+            logging.info(f"Reading testing data from: {test_path}")
+
             # Reading train and test data
             train_df = pd.read_csv(train_path)
             test_df = pd.read_csv(test_path)
@@ -73,12 +76,11 @@ class DataTransformation:
             logging.info("Read train and test data completed")
 
             # Obtaining preprocessing object
-            logging.info("Obtaining preprocessing object")
             preprocessing_obj = self.get_data_transformer_object()
 
             target_column_name = "math_score"
 
-            # Separate features and target
+            # Splitting features and target
             input_feature_train_df = train_df.drop(columns=[target_column_name], axis=1)
             target_feature_train_df = train_df[target_column_name]
 
@@ -87,17 +89,16 @@ class DataTransformation:
 
             logging.info("Applying preprocessing object on training and testing data")
 
-            # Applying the transformation
+            # Applying transformations
             input_feature_train_arr = preprocessing_obj.fit_transform(input_feature_train_df)
             input_feature_test_arr = preprocessing_obj.transform(input_feature_test_df)
 
-            # Combining the transformed features and target
+            # Combining transformed features and target
             train_arr = np.c_[input_feature_train_arr, np.array(target_feature_train_df)]
             test_arr = np.c_[input_feature_test_arr, np.array(target_feature_test_df)]
 
-            logging.info("Saved preprocessing object")
-
-            # Saving the preprocessor object
+            # Saving preprocessing object
+            logging.info("Saving preprocessing object")
             save_object(
                 file_path=self.data_transformation_config.preprocessor_obj_file_path,
                 obj=preprocessing_obj
